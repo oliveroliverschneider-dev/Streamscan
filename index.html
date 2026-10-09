@@ -62,6 +62,11 @@ textarea, select { font: inherit; width: 100%; background: var(--bg); color: var
 .view { display: flex; margin: 16px 0 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; width: fit-content; }
 .view button { border: 0; border-radius: 0; padding: 8px 16px; font-weight: 600; background: var(--card); }
 .view button.on { background: var(--accent); color: var(--accent-ink); }
+.view { display: grid; grid-template-columns: repeat(4, auto); }
+@media (max-width: 520px) { .view { grid-template-columns: 1fr 1fr; width: 100%; } .view button { border-top: 1px solid var(--line); } .view button:nth-child(-n+2) { border-top: 0; } }
+.view .count { display: inline-block; min-width: 1.4em; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--follow); color: var(--card); font-size: 12px; }
+.view .count:empty { display: none; }
+.actions button.watched { background: var(--new); color: var(--card); border-color: var(--new); font-weight: 600; }
 .more { display: block; width: 100%; margin: 14px 0 0; padding: 10px; font-weight: 600; }
 .alert { display: flex; gap: 10px; align-items: center; background: var(--chip-on); color: var(--chip-on-ink); border-radius: 12px; padding: 10px 14px; margin: 12px 0 0; }
 .alert p { margin: 0; flex: 1; font-weight: 600; }
@@ -128,10 +133,10 @@ footer a { color: inherit; }
   </details>
 
   <nav class="view" id="view" aria-label="Which shows">
-    <button type="button" data-view="soon">Coming soon</button><button type="button" data-view="arrived">Just arrived</button>
+    <button type="button" data-view="soon">Coming soon</button><button type="button" data-view="arrived">Just arrived</button><button type="button" data-view="together">Watch together<span class="count" id="together-count"></span></button><button type="button" data-view="archive">Archive</button>
   </nav>
   <div class="alert" id="alert" hidden role="status">
-    <span aria-hidden="true">🍿</span><p></p><button type="button" class="mini">Got it</button>
+    <span aria-hidden="true">🍿</span><p></p><button type="button" class="mini">See them</button>
   </div>
   <div class="status" id="status"></div>
   <div class="error" id="error" hidden role="alert">
@@ -509,7 +514,8 @@ if (typeof window !== "undefined") window.Streamscan = Streamscan;
   const unb64 = (str) => decodeURIComponent(escape(atob(str.replace(/-/g, "+").replace(/_/g, "/"))));
 
   async function shareProfiles() {
-    const data = { v: 1, profiles: saved.profiles.map((p) => ({ name: p.name, prefs: p.prefs })) };
+    const data = { v: 1, profiles: saved.profiles.map((p) => ({ name: p.name, prefs: p.prefs })),
+      watched: watchedList().map((w) => ({ id: w.id, name: w.name, url: w.url, service: w.service, on: w.on })) };
     const url = location.href.split("#")[0] + "#lists=" + b64(JSON.stringify(data));
     const [a, b] = saved.profiles.map((x) => x.name);
     try {
@@ -537,7 +543,11 @@ if (typeof window !== "undefined") window.Streamscan = Streamscan;
         followedShows: clean(q.followedShows), hiddenShows: clean(q.hiddenShows), languages: clean(q.languages),
         days: [7, 14, 28, 42].includes(q.days) ? q.days : S.DEFAULT_PREFS.days, includeNewSeasons: q.includeNewSeasons !== false,
         lookBack: [14, 30, 60, 90].includes(q.lookBack) ? q.lookBack : S.DEFAULT_PREFS.lookBack,
-      }) };
+      }),
+    watched: (Array.isArray(data.watched) ? data.watched : []).filter((w) => w && Number.isInteger(w.id) && typeof w.name === "string").slice(0, 500)
+      .map((w) => ({ id: w.id, name: w.name.slice(0, 120), url: /^https:\/\/www\.tvmaze\.com\//.test(w.url) ? w.url : "", service: String(w.service || "").slice(0, 40),
+        on: /^\d{4}-\d\d-\d\d$/.test(w.on) ? w.on : today })),
+    };
     }) };
     prefs = saved.profiles[saved.active].prefs;
     store.set(PROFILES_KEY, saved);
@@ -654,6 +664,12 @@ if (typeof window !== "undefined") window.Streamscan = Streamscan;
     }
     const sum = document.createElement("p"); sum.className = "summary"; sum.textContent = p.summary;
     const act = document.createElement("div"); act.className = "actions";
+    if (p.reasonsA) {
+      act.append(Object.assign(document.createElement("button"), {
+        textContent: "✓ Watched", type: "button", className: "watched",
+        onclick: () => markWatched(p),
+      }));
+    }
     act.append(
       Object.assign(document.createElement("button"), {
         textContent: p.followed ? "Unfollow" : "Follow", type: "button",
@@ -682,50 +698,85 @@ if (typeof window !== "undefined") window.Streamscan = Streamscan;
     return frag;
   }
 
+  // Shows you've both watched, newest first. Shared by both profiles and carried in the
+  // "Send to other phone" link, so both phones agree.
+  function watchedList() { return Array.isArray(saved.watched) ? saved.watched : (saved.watched = []); }
+  function markWatched(p) {
+    watchedList().unshift({ id: p.id, name: p.name, url: p.url, image: p.image, service: p.service, genres: p.genres, on: today });
+    savePrefs();
+  }
+  function unwatch(id) { saved.watched = watchedList().filter((w) => w.id !== id); savePrefs(); }
+
+  function archiveCard(w) {
+    const el = document.createElement("article"); el.className = "card";
+    const img = document.createElement(w.image ? "img" : "div"); img.className = "poster";
+    if (w.image) { img.src = w.image; img.alt = ""; img.loading = "lazy"; }
+    const body = document.createElement("div");
+    const h = document.createElement("h4"); const a = document.createElement("a");
+    a.href = w.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = w.name; h.appendChild(a);
+    const meta = document.createElement("div"); meta.className = "meta";
+    ["Watched " + fmtDate(w.on), w.service, (w.genres || []).join(", ")].filter(Boolean).forEach((t) => {
+      const sp = document.createElement("span"); sp.textContent = t; meta.append(sp);
+    });
+    const act = document.createElement("div"); act.className = "actions";
+    act.append(Object.assign(document.createElement("button"), { type: "button", textContent: "Move back to Watch together", onclick: () => unwatch(w.id) }));
+    body.append(h, meta, act); el.append(img, body);
+    return el;
+  }
+
+  // Show `items` as a short list with the rest behind one "Show more" button.
+  function shortList(title, items, limit, make = card, restTitle = "The rest") {
+    const out = $("out");
+    const head = document.createElement("h2"); head.textContent = title; out.appendChild(head);
+    const list = document.createElement("div"); list.className = "list";
+    items.slice(0, expanded ? items.length : limit).forEach((p) => list.appendChild(make(p)));
+    out.appendChild(list);
+    if (items.length > limit) {
+      const btn = Object.assign(document.createElement("button"), { type: "button", className: "more",
+        textContent: expanded ? "Show fewer" : `Show ${items.length - limit} more` });
+      btn.onclick = () => { expanded = !expanded; render(); };
+      out.appendChild(btn);
+    }
+  }
+
+  function empty(text) {
+    const d = document.createElement("div"); d.className = "empty"; d.textContent = text; $("out").appendChild(d);
+  }
+
   function render() {
     const out = $("out"); out.innerHTML = "";
-    if (!episodes) return;
-    const arrived = view === "arrived" ? { arrived: true } : {};
-    const both = (o) => S.bothWant(episodes, saved.profiles[0].prefs, saved.profiles[1].prefs, today, o);
-    const together = both(arrived);
+    const watchedIds = new Set(watchedList().map((w) => w.id));
+    if (!episodes && view !== "archive") return;
+    const notWatched = (p) => !watchedIds.has(p.id);
+    const both = (o) => !episodes ? [] : S.bothWant(episodes, saved.profiles[0].prefs, saved.profiles[1].prefs, today, o).filter(notWatched);
+    // Everything you'd both want, out now first, then upcoming by date.
+    const outNow = both({ arrived: true }), soon = both({});
+    const together = outNow.concat(soon.filter((p) => !outNow.some((q) => q.id === p.id)));
     const togetherIds = new Set(together.map((p) => p.id));
-    const picks = S.recommend(episodes, prefs, today, arrived).filter((p) => !togetherIds.has(p.id));
-    drawAlert(view === "arrived" ? together.concat(both({})) : together.concat(both({ arrived: true })));
-    const tsec = section("Watch together", together.slice(0, SHORT_TOGETHER));
-    if (tsec) out.appendChild(tsec);
-    if (!picks.length && !together.length && loading) {
-      $("status").textContent = `Loading listings: day ${loading.n} of ${loading.total}…`;
+    $("together-count").textContent = together.length ? String(together.length) : "";
+    drawAlert(together);
+    const status = loading ? `Loading listings: day ${loading.n} of ${loading.total}…` : (skipped.length ? `${skipped.length} day(s) couldn't be loaded.` : "");
+    $("status").textContent = status;
+    if (view === "archive") {
+      $("status").textContent = "";
+      if (!watchedList().length) return empty("Nothing here yet. Tap \u201c\u2713 Watched\u201d on a show in Watch together and it moves here.");
+      shortList(`Watched together (${watchedList().length})`, watchedList(), 10, archiveCard);
       return;
     }
-    if (!picks.length && !together.length) {
-      out.innerHTML = '<div class="empty">Nothing matches yet. Switch on more services above, or loosen your tastes.</div>';
+
+    if (view === "together") {
+      if (!together.length) return loading ? null : empty("No shows you'd both want right now. Following the same show, or liking a genre in each of your tastes, brings them here.");
+      shortList("Shows you'd both want", together, SHORT_MINE);
       return;
     }
-    // Kept deliberately short: a few shared picks and a few personal ones. Everything
-    // else waits behind one "Show more" button, listed by date.
+
+    const arrived = view === "arrived" ? { arrived: true } : {};
+    const picks = S.recommend(episodes, prefs, today, arrived).filter((p) => !togetherIds.has(p.id) && notWatched(p));
+    if (!picks.length) return loading ? null : empty("Nothing matches yet. Switch on more services above, or loosen your tastes.");
     const name = saved.profiles[saved.active].name;
-    const extraTogether = together.slice(SHORT_TOGETHER);
-    const mine = picks.slice(0, SHORT_MINE);
-    const more = extraTogether.concat(picks.slice(SHORT_MINE)).sort((a, b) =>
-      view === "arrived" ? b.airdate.localeCompare(a.airdate) : a.airdate.localeCompare(b.airdate));
-    const msec = section(view === "arrived" ? `Out now for ${name}` : `Coming for ${name}`, mine);
-    if (msec) out.appendChild(msec);
-    if (more.length) {
-      if (expanded) {
-        out.appendChild(section(view === "arrived" ? "Everything else, newest first" : "Everything else, by date", more));
-        const less = Object.assign(document.createElement("button"), { type: "button", className: "more", textContent: "Show fewer" });
-        less.onclick = () => { expanded = false; render(); };
-        out.appendChild(less);
-      } else {
-        const btn = Object.assign(document.createElement("button"), { type: "button", className: "more", textContent: `Show ${more.length} more` });
-        btn.onclick = () => { expanded = true; render(); };
-        out.appendChild(btn);
-      }
-    }
-    $("status").textContent = loading
-      ? `Loading listings: day ${loading.n} of ${loading.total}…`
-      : (skipped.length ? `${skipped.length} day(s) couldn't be loaded.` : "");
+    shortList(view === "arrived" ? `Out now for ${name}` : `Coming for ${name}`, picks, SHORT_MINE);
   }
+
 
   // Banner for shows you'd both want that haven't been seen yet. Only once loading has
   // finished, so it doesn't flicker as days arrive. Dismissing marks them as seen.
@@ -741,19 +792,22 @@ if (typeof window !== "undefined") window.Streamscan = Streamscan;
     box.querySelector("button").onclick = () => {
       store.set(SEEN_KEY, [...seen, ...fresh.map((p) => p.id)].slice(-500));
       box.hidden = true;
+      setView("together");
     };
     box.hidden = false;
   }
 
-  const SHORT_TOGETHER = 3, SHORT_MINE = 5;
+  const SHORT_MINE = 5;
   let expanded = false;
-  let view = "soon"; // "soon" (coming up) or "arrived" (out in the last month)
-  try { if (sessionStorage.getItem("streamscan:view") === "arrived") view = "arrived"; } catch {}
+  const VIEWS = ["soon", "arrived", "together", "archive"];
+  let view = "soon";
+  try { const v = sessionStorage.getItem("streamscan:view"); if (VIEWS.includes(v)) view = v; } catch {}
+  function setView(v) { view = v; expanded = false; try { sessionStorage.setItem("streamscan:view", view); } catch {} drawView(); render(); }
   function drawView() {
     document.querySelectorAll("#view button").forEach((b) => {
       const on = b.dataset.view === view;
       b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
-      b.onclick = () => { view = b.dataset.view; expanded = false; try { sessionStorage.setItem("streamscan:view", view); } catch {} drawView(); render(); };
+      b.onclick = () => setView(b.dataset.view);
     });
   }
 
