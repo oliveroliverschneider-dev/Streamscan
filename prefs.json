@@ -1,0 +1,10 @@
+{
+  "services": ["Netflix", "Prime Video", "Disney+", "Apple TV+", "BBC iPlayer", "ITVX", "Channel 4"],
+  "likedGenres": [],
+  "dislikedGenres": [],
+  "followedShows": [],
+  "hiddenShows": [],
+  "languages": ["English"],
+  "days": 28,
+  "includeNewSeasons": true
+}

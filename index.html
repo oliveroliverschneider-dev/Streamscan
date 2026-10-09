@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Streamscan">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#c2410c">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Streamscan</title>
+<style>
+:root {
+  --bg: #f6f4ef; --card: #ffffff; --ink: #1d1b18; --muted: #6b665e; --line: #e4dfd5;
+  --accent: #c2410c; --accent-ink: #ffffff; --chip: #efe9de; --chip-on: #1d1b18; --chip-on-ink: #ffffff;
+  --new: #15803d; --season: #1d4ed8; --follow: #a16207;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15140f; --card: #1f1d18; --ink: #f2efe8; --muted: #a39d92; --line: #34312a;
+    --accent: #fb923c; --accent-ink: #15140f; --chip: #2a2822; --chip-on: #f2efe8; --chip-on-ink: #15140f;
+    --new: #4ade80; --season: #93c5fd; --follow: #facc15;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15140f; --card: #1f1d18; --ink: #f2efe8; --muted: #a39d92; --line: #34312a;
+  --accent: #fb923c; --accent-ink: #15140f; --chip: #2a2822; --chip-on: #f2efe8; --chip-on-ink: #15140f;
+  --new: #4ade80; --season: #93c5fd; --follow: #facc15;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 960px; margin: 0 auto; padding: calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(60px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); }
+button, .chip { min-height: 32px; -webkit-tap-highlight-color: transparent; }
+textarea, select { font-size: 16px; } /* stops iPhone zooming in on tap */
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
+h1 span { color: var(--accent); }
+.sub { color: var(--muted); margin: 4px 0 0; }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 7px 12px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.settings { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; margin: 16px 0; }
+details.settings summary { cursor: pointer; font-weight: 600; }
+.group { margin: 14px 0; }
+.group h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--chip); border-radius: 999px; padding: 4px 11px; font-size: 13px; }
+.profiles { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 16px 0 0; }
+.tab { border-radius: 999px; padding: 6px 16px; font-weight: 600; }
+.tab.on { background: var(--chip-on); color: var(--chip-on-ink); border-color: var(--chip-on); }
+.mini { padding: 3px 10px; font-size: 12px; }
+.chip.svc::before { content: "○ "; }
+.chip.svc.on::before { content: "✓ "; }
+.chip.on { background: var(--chip-on); color: var(--chip-on-ink); border-color: var(--chip-on); }
+.chip.off { text-decoration: line-through; opacity: 0.75; border-color: var(--accent); }
+.hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+textarea, select { font: inherit; width: 100%; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.status { color: var(--muted); margin: 12px 0; min-height: 1.4em; }
+.view { display: flex; margin: 16px 0 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; width: fit-content; }
+.view button { border: 0; border-radius: 0; padding: 8px 16px; font-weight: 600; background: var(--card); }
+.view button.on { background: var(--accent); color: var(--accent-ink); }
+.more { display: block; width: 100%; margin: 14px 0 0; padding: 10px; font-weight: 600; }
+.alert { display: flex; gap: 10px; align-items: center; background: var(--chip-on); color: var(--chip-on-ink); border-radius: 12px; padding: 10px 14px; margin: 12px 0 0; }
+.alert p { margin: 0; flex: 1; font-weight: 600; }
+.card.together { border-color: var(--follow); border-width: 2px; }
+.error { background: var(--card); border: 1px solid var(--accent); border-radius: 12px; padding: 12px 16px; margin: 0 0 12px; }
+.error p { margin: 6px 0; }
+.error details { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+.error code { word-break: break-all; }
+.bar { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+h2 { font-size: 18px; margin: 28px 0 10px; }
+.list { display: grid; gap: 10px; }
+.card { display: grid; grid-template-columns: 72px 1fr; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.poster { width: 72px; height: 102px; border-radius: 6px; object-fit: cover; background: var(--chip); }
+.card h4 { margin: 0; font-size: 16px; }
+.card h4 a { color: inherit; text-decoration: none; }
+.card h4 a:hover { text-decoration: underline; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 13px; color: var(--muted); margin: 3px 0 6px; }
+.tag { font-weight: 600; }
+.tag.new-show { color: var(--new); } .tag.new-season { color: var(--season); } .tag.followed { color: var(--follow); }
+.why { font-size: 13px; margin: 0 0 6px; }
+.summary { font-size: 13px; color: var(--muted); margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.actions { display: flex; gap: 6px; margin-top: 8px; }
+.actions button { padding: 3px 9px; font-size: 12px; }
+.empty { background: var(--card); border: 1px dashed var(--line); border-radius: 12px; padding: 20px; color: var(--muted); }
+footer { color: var(--muted); font-size: 12px; margin-top: 36px; }
+footer a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Stream<span>scan</span></h1>
+      <p class="sub">New series and new seasons coming to your services, picked for you.</p>
+    </div>
+    <button class="primary" id="refresh">Refresh listings</button>
+  </header>
+  <nav class="profiles" id="profiles" aria-label="Whose picks"></nav>
+
+  <details class="settings" id="svc-panel">
+    <summary id="svc-summary">Services</summary>
+    <div class="group" style="margin:10px 0 0"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Services to scan</h3>
+      <span class="row" style="gap:6px"><button type="button" class="mini" id="svc-all">All</button><button type="button" class="mini" id="svc-none">None</button></span></div>
+      <div class="chips" id="services" role="group" style="margin-top:10px"></div>
+      <p class="hint">Tap a service to switch it on or off.</p></div>
+  </details>
+
+  <details class="settings" id="settings">
+    <summary>Your tastes</summary>
+    <div class="group"><h3>Genres</h3><div class="chips" id="genres"></div>
+      <p class="hint">Tap once to like, twice to never show, three times to reset.</p></div>
+    <div class="group"><h3>Shows you follow</h3>
+      <textarea id="followed" rows="2" placeholder="One per line, e.g. Slow Horses"></textarea>
+      <p class="hint">Followed shows always appear, including every new episode.</p></div>
+    <div class="group"><h3>Hidden shows</h3>
+      <textarea id="hidden" rows="2" placeholder="One per line"></textarea></div>
+    <div class="group row">
+      <label>Look ahead <select id="days" style="width:auto"><option>7</option><option>14</option><option>28</option><option>42</option></select> days</label>
+      <label>Look back <select id="lookback" style="width:auto"><option>14</option><option>30</option><option>60</option><option>90</option></select> days</label>
+      <label><input type="checkbox" id="seasons"> Include new seasons of existing shows</label>
+      <label><input type="checkbox" id="foreign"> Include non-English shows</label>
+    </div>
+  </details>
+
+  <nav class="view" id="view" aria-label="Which shows">
+    <button type="button" data-view="soon">Coming soon</button><button type="button" data-view="arrived">Just arrived</button>
+  </nav>
+  <div class="alert" id="alert" hidden role="status">
+    <span aria-hidden="true">🍿</span><p></p><button type="button" class="mini">Got it</button>
+  </div>
+  <div class="status" id="status"></div>
+  <div class="error" id="error" hidden role="alert">
+    <strong>Couldn't fetch listings</strong>
+    <p></p>
+    <details><summary>Technical detail</summary><code></code></details>
+    <button type="button" class="primary" id="retry">Try again</button>
+  </div>
+  <div class="bar" id="bar" hidden><i></i></div>
+  <main id="out"></main>
+
+  <footer>Listings from <a href="https://www.tvmaze.com" target="_blank" rel="noopener">TVmaze</a> (CC BY-SA). UK region. Your settings stay in this browser.</footer>
+</div>
+
+<script>
+// Streamscan core: turns TVmaze schedule data into personalised picks.
+// Pure functions only, shared by the browser app and the command-line scanner.
+
+const SERVICES = {
+  "Netflix": ["netflix"],
+  "Prime Video": ["prime video"],
+  "Disney+": ["disney+", "hulu", "star"],
+  "Apple TV+": ["apple tv"],
+  "Paramount+": ["paramount+"],
+  "Sky / NOW": ["sky atlantic", "sky max", "sky one", "sky showcase", "sky comedy", "sky witness", "sky documentaries", "sky nature", "sky crime", "sky arts", "sky", "now", "hbo", "hbo max"],
+  "BBC iPlayer": ["bbc"],
+  "ITVX": ["itv"],
+  "Channel 4": ["channel 4", "e4", "more4", "film4"],
+  "Channel 5": ["channel 5", "5star", "my5", "5usa"],
+  "U (UKTV)": ["dave", "gold", "alibi", "drama", "yesterday", "w", "u&"],
+  "BritBox": ["britbox"],
+  "MUBI": ["mubi"],
+  "Crunchyroll": ["crunchyroll"],
+};
+
+const DEFAULT_PREFS = {
+  services: ["Netflix", "Prime Video", "Disney+", "Apple TV+", "BBC iPlayer", "ITVX", "Channel 4"],
+  likedGenres: [],
+  dislikedGenres: [],
+  followedShows: [],
+  hiddenShows: [],
+  languages: ["English"],
+  days: 28,
+  lookBack: 30,
+  includeNewSeasons: true,
+};
+
+const GENRES = ["Action", "Adventure", "Anime", "Children", "Comedy", "Crime", "Drama", "Espionage", "Family", "Fantasy", "Food", "History", "Horror", "Legal", "Medical", "Music", "Mystery", "Nature", "Romance", "Science-Fiction", "Sports", "Supernatural", "Thriller", "Travel", "War", "Western"];
+
+const norm = (s) => (s || "").toLowerCase().trim();
+
+// TVmaze puts the show under _embedded.show for web/full schedules and under show for broadcast ones.
+function showOf(ep) {
+  return (ep._embedded && ep._embedded.show) || ep.show || null;
+}
+
+function outletOf(show) {
+  const ch = show.webChannel || show.network;
+  return ch ? ch.name : "";
+}
+
+// Outlets based outside the UK whose shows still stream here (HBO via Sky/NOW,
+// Hulu originals on Disney+, Paramount+ originals on Paramount+ UK).
+const UK_CARRIED_FOREIGN = ["hbo", "hbo max", "hulu", "paramount+"];
+
+// UK only: a channel counts if it is global (no country), British, or carried in the UK.
+function availableInUK(ch) {
+  const code = ch.country && ch.country.code;
+  return !code || code === "GB" || UK_CARRIED_FOREIGN.includes(norm(ch.name));
+}
+
+// Which of the known UK services a show's network or web channel belongs to, if any.
+// Exact match first, then prefix match, so "Sky Atlantic" beats the bare "sky".
+function serviceFor(show) {
+  const names = [show.webChannel, show.network].filter(Boolean).filter(availableInUK).map((c) => norm(c.name));
+  for (const name of names) {
+    for (const [service, keys] of Object.entries(SERVICES)) {
+      if (keys.includes(name)) return service;
+    }
+  }
+  for (const name of names) {
+    for (const [service, keys] of Object.entries(SERVICES)) {
+      if (keys.some((k) => k.length > 2 && name.startsWith(k))) return service;
+    }
+  }
+  return null;
+}
+
+function stripHtml(s) {
+  return (s || "").replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+}
+
+// Collapse a list of episodes into one entry per show, keeping its earliest upcoming episode.
+function groupByShow(episodes) {
+  const byShow = new Map();
+  for (const ep of episodes) {
+    const show = showOf(ep);
+    if (!show || !ep.airdate) continue;
+    const prev = byShow.get(show.id);
+    if (!prev) {
+      byShow.set(show.id, { show, first: ep, episodes: 1 });
+    } else {
+      prev.episodes += 1;
+      if (ep.airdate < prev.first.airdate || (ep.airdate === prev.first.airdate && (ep.number || 99) < (prev.first.number || 99))) prev.first = ep;
+    }
+  }
+  return [...byShow.values()];
+}
+
+function kindOf(ep) {
+  if (ep.number === 1 && ep.season === 1) return "new-show";
+  if (ep.number === 1) return "new-season";
+  return "continuing";
+}
+
+// Score one show for these preferences. Returns null when it should be left out entirely.
+function scoreShow(entry, prefs, today) {
+  const { show, first } = entry;
+  const name = norm(show.name);
+  if (prefs.hiddenShows.map(norm).includes(name)) return null;
+
+  const followed = prefs.followedShows.map(norm).includes(name);
+  const service = serviceFor(show);
+  if (!followed) {
+    if (!service || !prefs.services.includes(service)) return null;
+    if (prefs.languages.length && show.language && !prefs.languages.includes(show.language)) return null;
+  }
+
+  const kind = kindOf(first);
+  if (!followed) {
+    if (kind === "continuing") return null;
+    if (kind === "new-season" && !prefs.includeNewSeasons) return null;
+  }
+
+  const genres = show.genres || [];
+  const disliked = genres.filter((g) => prefs.dislikedGenres.includes(g));
+  if (disliked.length && !followed) return null;
+  const liked = genres.filter((g) => prefs.likedGenres.includes(g));
+
+  let score = 0;
+  const reasons = [];
+  if (followed) { score += 100; reasons.push("You follow this show"); }
+  if (kind === "new-show") { score += 20; reasons.push("Brand new series"); }
+  if (kind === "new-season") { score += 12; reasons.push(`Season ${first.season} premiere`); }
+  if (liked.length) { score += 15 * liked.length; reasons.push(`You like ${liked.join(", ")}`); }
+  const rating = show.rating && show.rating.average;
+  if (rating) { score += Math.max(0, rating - 6) * 4; if (rating >= 7.5) reasons.push(`Rated ${rating}/10 on TVmaze`); }
+  if (show.weight) score += show.weight / 20; // TVmaze popularity, 0-100
+  if (show.type === "Reality" || show.type === "Talk Show" || show.type === "News") score -= 8;
+
+  const daysAway = Math.round((Date.parse(first.airdate) - Date.parse(today)) / 86400000);
+  return {
+    id: show.id,
+    name: show.name,
+    url: show.url,
+    officialSite: show.officialSite || null,
+    image: show.image ? show.image.medium : null,
+    summary: stripHtml(show.summary),
+    genres,
+    language: show.language,
+    type: show.type,
+    rating: rating || null,
+    service: service || outletOf(show),
+    outlet: outletOf(show),
+    kind,
+    season: first.season,
+    episode: first.number,
+    airdate: first.airdate,
+    daysAway,
+    episodesComing: entry.episodes,
+    followed,
+    score: Math.round(score * 10) / 10,
+    reasons,
+  };
+}
+
+// Main entry: episodes (any TVmaze schedule shape) + prefs -> sorted picks within the window.
+// opts.arrived: look back over the last prefs.lookBack days instead of ahead, keeping
+// only premieres (shows that started a new series or season and are out now).
+function recommend(episodes, prefsIn, today, opts = {}) {
+  const prefs = { ...DEFAULT_PREFS, ...(prefsIn || {}) };
+  const start = opts.arrived ? addDays(today, -prefs.lookBack) : today;
+  const end = opts.arrived ? addDays(today, -1) : addDays(today, prefs.days);
+  const inWindow = episodes.filter((ep) => ep.airdate && ep.airdate >= start && ep.airdate <= end);
+  const seen = new Set();
+  const unique = inWindow.filter((ep) => (seen.has(ep.id) ? false : (seen.add(ep.id), true)));
+  return groupByShow(unique)
+    .map((e) => scoreShow(e, prefs, today))
+    .filter((p) => p && (!opts.arrived || p.kind !== "continuing"))
+    .sort((a, b) => b.score - a.score || a.airdate.localeCompare(b.airdate));
+}
+
+
+// Shows both people want: each would see it on their own services and filters, and
+// each has a positive reason (follows it, or it has a genre they like).
+// Without that second rule, two people with default settings would "both want" everything.
+function bothWant(episodes, prefsA, prefsB, today, opts = {}) {
+  const keen = (p) => p && (p.followed || p.reasons.some((r) => r.startsWith("You like")));
+  const b = new Map(recommend(episodes, prefsB, today, opts).map((p) => [p.id, p]));
+  return recommend(episodes, prefsA, today, opts)
+    .filter((p) => keen(p) && keen(b.get(p.id)))
+    .map((p) => {
+      const q = b.get(p.id);
+      return { ...p, score: p.score + q.score, followed: p.followed || q.followed, reasonsA: p.reasons, reasonsB: q.reasons };
+    })
+    .sort((x, y) => y.score - x.score || x.airdate.localeCompare(y.airdate));
+}
+
+// ---- Fetching from TVmaze -------------------------------------------------
+// Per day we ask for every streaming (web) release worldwide plus UK broadcast TV,
+// which covers iPlayer, ITVX, Channel 4 and Sky shows. TVmaze allows ~20 calls per
+// 10 seconds, so calls are spaced out and retried on 429.
+
+const API = "https://api.tvmaze.com";
+
+function addDays(iso, n) {
+  return new Date(Date.parse(iso) + n * 86400000).toISOString().slice(0, 10);
+}
+
+// Keep only what scoring and display need, so caches stay small.
+function trimEpisode(ep) {
+  const s = showOf(ep);
+  if (!s) return null;
+  const ch = (c) => (c ? { name: c.name, country: c.country ? { code: c.country.code } : null } : null);
+  return {
+    id: ep.id, season: ep.season, number: ep.number, airdate: ep.airdate,
+    show: {
+      id: s.id, name: s.name, url: s.url, officialSite: s.officialSite, type: s.type, language: s.language,
+      genres: s.genres, rating: s.rating, weight: s.weight, network: ch(s.network), webChannel: ch(s.webChannel),
+      image: s.image ? { medium: s.image.medium } : null, summary: s.summary,
+    },
+  };
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// One failed TVmaze call, with a reason a person can act on.
+class FetchError extends Error {
+  constructor(kind, url, detail) {
+    super(`${kind}: ${detail} (${url})`);
+    this.kind = kind; // "blocked" (browser stopped it / no network), "rate-limited", "http"
+    this.url = url;
+    this.detail = detail;
+  }
+}
+
+// TVmaze answers too many calls with 429. In a browser that 429 can arrive without
+// CORS headers, so it shows up as a network TypeError instead; both are retried.
+async function getJson(fetchFn, url, tries = 4) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    if (i) await sleep(2000 * 2 ** (i - 1));
+    let res;
+    try {
+      res = await fetchFn(url);
+    } catch (e) {
+      last = new FetchError("blocked", url, e && e.message ? e.message : String(e));
+      continue;
+    }
+    if (res.status === 429) { last = new FetchError("rate-limited", url, "TVmaze asked us to slow down"); continue; }
+    if (!res.ok) throw new FetchError("http", url, `TVmaze returned ${res.status}`);
+    return res.json();
+  }
+  throw last;
+}
+
+// cache: optional {get(key), set(key, value)} so repeat runs skip days already fetched.
+// onDay(episodesSoFar) lets a page show results while later days are still loading.
+// A day that keeps failing is skipped and reported through onError; the run only
+// fails outright if no day at all could be fetched.
+// back: also fetch this many past days (after the upcoming ones), for "just arrived".
+async function fetchUpcoming({ fetchFn, today, days, back = 0, country = "GB", cache, onProgress, onDay, onError, gapMs = 1000 }) {
+  const all = [];
+  let ok = 0, lastErr = null;
+  const offsets = [];
+  for (let d = 0; d <= days; d++) offsets.push(d);
+  for (let d = 1; d <= back; d++) offsets.push(-d);
+  for (let i = 0; i < offsets.length; i++) {
+    const d = offsets[i];
+    const date = addDays(today, d);
+    const key = `day:${country}:${date}`;
+    let eps = cache && cache.get(key);
+    if (!eps) {
+      try {
+        // Until one call has worked, give up quickly so a blocked browser hears about it fast.
+        const tries = ok ? 4 : 2;
+        const web = await getJson(fetchFn, `${API}/schedule/web?date=${date}`, tries);
+        await sleep(gapMs);
+        const tv = await getJson(fetchFn, `${API}/schedule?country=${country}&date=${date}`, tries);
+        await sleep(gapMs);
+        eps = [...web, ...tv].map(trimEpisode).filter(Boolean);
+        if (cache) cache.set(key, eps);
+      } catch (e) {
+        lastErr = e;
+        if (onError) onError(e, date);
+        // Nothing has worked yet and the browser is refusing outright: stop instead of
+        // grinding through every remaining day with the same failure.
+        if (!ok && i >= 1 && e.kind === "blocked") break;
+        continue;
+      }
+    }
+    ok++;
+    all.push(...eps);
+    if (onProgress) onProgress(i + 1, offsets.length);
+    if (onDay) onDay(all);
+  }
+  if (!ok && lastErr) throw lastErr;
+  return all;
+}
+
+const Streamscan = { bothWant, FetchError, availableInUK, fetchUpcoming, addDays, SERVICES, DEFAULT_PREFS, GENRES, serviceFor, recommend, kindOf, stripHtml };
+if (typeof module !== "undefined" && module.exports) module.exports = Streamscan;
+if (typeof window !== "undefined") window.Streamscan = Streamscan;
+
+</script>
+<script>
+(function () {
+  const S = window.Streamscan;
+  const PREFS_KEY = "streamscan:prefs";
+  const CACHE_TTL = 12 * 3600 * 1000;
+  const $ = (id) => document.getElementById(id);
+
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+  const memCache = new Map();
+  const cache = {
+    get(k) {
+      if (memCache.has(k)) return memCache.get(k);
+      const hit = store.get("streamscan:" + k);
+      if (!hit) return null;
+      // Past days don't change, so they're kept; today and later are refreshed every 12 hours.
+      const date = k.slice(-10);
+      return date < today || Date.now() - hit.at < CACHE_TTL ? hit.eps : null;
+    },
+    set(k, eps) {
+      memCache.set(k, eps);
+      if (!store.set("streamscan:" + k, { at: Date.now(), eps })) pruneCache();
+    },
+  };
+  function pruneCache() {
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("streamscan:day:")) localStorage.removeItem(k);
+      }
+    } catch {}
+  }
+
+  // Two people, each with their own services, tastes and followed shows.
+  // Saved as {active, profiles: [{name, prefs}]}; an older single-person save becomes the first profile.
+  const PROFILES_KEY = "streamscan:profiles";
+  let saved = store.get(PROFILES_KEY);
+  const firstRun = !saved && !store.get(PREFS_KEY);
+  if (!saved || !Array.isArray(saved.profiles)) {
+    saved = { active: 0, profiles: [
+      { name: "Nicola", prefs: Object.assign({}, S.DEFAULT_PREFS, store.get(PREFS_KEY) || {}) },
+      { name: "Partner", prefs: Object.assign({}, S.DEFAULT_PREFS) },
+    ] };
+  }
+  saved.profiles.forEach((pr) => { pr.prefs = Object.assign({}, S.DEFAULT_PREFS, pr.prefs); });
+  let prefs = saved.profiles[saved.active].prefs;
+  let episodes = null;
+  const today = new Date().toISOString().slice(0, 10);
+
+  function savePrefs() { store.set(PROFILES_KEY, saved); render(); }
+
+  // Both people's lists travel inside a link (after #, so it never reaches a server).
+  // Opening it on the other phone offers to load them there.
+  const b64 = (str) => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const unb64 = (str) => decodeURIComponent(escape(atob(str.replace(/-/g, "+").replace(/_/g, "/"))));
+
+  async function shareProfiles() {
+    const data = { v: 1, profiles: saved.profiles.map((p) => ({ name: p.name, prefs: p.prefs })) };
+    const url = location.href.split("#")[0] + "#lists=" + b64(JSON.stringify(data));
+    const [a, b] = saved.profiles.map((x) => x.name);
+    try {
+      if (navigator.share) { await navigator.share({ title: "Streamscan lists", text: `${a} and ${b}'s Streamscan lists`, url }); return; }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(url); alert("Link copied. Open it on the other phone to load both lists."); }
+    catch { window.prompt("Copy this link and open it on the other phone:", url); }
+  }
+
+  function importFromLink() {
+    const m = location.hash.match(/#lists=([\w-]+)/);
+    if (!m) return;
+    history.replaceState(null, "", location.href.split("#")[0]);
+    let data;
+    try { data = JSON.parse(unb64(m[1])); } catch { alert("That Streamscan link looks broken, so nothing was changed."); return; }
+    if (!data || !Array.isArray(data.profiles) || data.profiles.length !== 2) return;
+    const names = data.profiles.map((p) => String(p.name || "").slice(0, 24) || "Someone");
+    if (!window.confirm(`Load ${names[0]} and ${names[1]}'s lists on this phone? This replaces the lists here.`)) return;
+    const mine = window.confirm(`Is this ${names[1]}'s phone? OK for ${names[1]}, Cancel for ${names[0]}.`) ? 1 : 0;
+    const clean = (arr) => (Array.isArray(arr) ? arr.filter((x) => typeof x === "string").slice(0, 300) : []);
+    saved = { active: mine, profiles: data.profiles.map((p, i) => {
+      const q = p.prefs || {};
+      return { name: names[i], prefs: Object.assign({}, S.DEFAULT_PREFS, {
+        services: clean(q.services).filter((x) => x in S.SERVICES), likedGenres: clean(q.likedGenres), dislikedGenres: clean(q.dislikedGenres),
+        followedShows: clean(q.followedShows), hiddenShows: clean(q.hiddenShows), languages: clean(q.languages),
+        days: [7, 14, 28, 42].includes(q.days) ? q.days : S.DEFAULT_PREFS.days, includeNewSeasons: q.includeNewSeasons !== false,
+        lookBack: [14, 30, 60, 90].includes(q.lookBack) ? q.lookBack : S.DEFAULT_PREFS.lookBack,
+      }) };
+    }) };
+    prefs = saved.profiles[saved.active].prefs;
+    store.set(PROFILES_KEY, saved);
+  }
+
+  function drawProfiles() {
+    const box = $("profiles"); box.innerHTML = "";
+    saved.profiles.forEach((pr, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "tab" + (i === saved.active ? " on" : "");
+      b.setAttribute("aria-pressed", String(i === saved.active));
+      b.textContent = pr.name;
+      b.onclick = () => {
+        if (i === saved.active) return;
+        const oldDays = prefs.days + "/" + prefs.lookBack;
+        saved.active = i; prefs = saved.profiles[i].prefs; expanded = false;
+        drawProfiles(); drawSettings(); savePrefs();
+        if (prefs.days + "/" + prefs.lookBack !== oldDays) load();
+      };
+      box.appendChild(b);
+    });
+    const sh = document.createElement("button");
+    sh.type = "button"; sh.className = "mini"; sh.textContent = "Send to other phone";
+    sh.onclick = shareProfiles;
+    box.appendChild(sh);
+    const rn = document.createElement("button");
+    rn.type = "button"; rn.className = "mini"; rn.textContent = "Rename";
+    rn.onclick = () => {
+      const pr = saved.profiles[saved.active];
+      const name = (window.prompt("Name for this profile", pr.name) || "").trim().slice(0, 24);
+      if (name) { pr.name = name; drawProfiles(); savePrefs(); }
+    };
+    box.appendChild(rn);
+  }
+  const lines = (s) => s.split("\n").map((x) => x.trim()).filter(Boolean);
+
+  function chip(label, cls, onClick) {
+    const b = document.createElement("button");
+    b.className = "chip " + cls; b.textContent = label; b.type = "button"; b.onclick = onClick;
+    return b;
+  }
+
+  function drawSettings() {
+    const sv = $("services"); sv.innerHTML = "";
+    Object.keys(S.SERVICES).forEach((name) => {
+      const on = prefs.services.includes(name);
+      const c = sv.appendChild(chip(name, on ? "svc on" : "svc", () => {
+        prefs.services = on ? prefs.services.filter((x) => x !== name) : prefs.services.concat(name);
+        drawSettings(); savePrefs();
+      }));
+      c.setAttribute("aria-pressed", String(on));
+    });
+    const on = Object.keys(S.SERVICES).filter((x) => prefs.services.includes(x));
+    $("svc-summary").textContent = on.length
+      ? `Services: ${on.slice(0, 3).join(", ")}${on.length > 3 ? ` +${on.length - 3} more` : ""}`
+      : "Services: none chosen yet";
+    const gv = $("genres"); gv.innerHTML = "";
+    S.GENRES.forEach((g) => {
+      const liked = prefs.likedGenres.includes(g), disliked = prefs.dislikedGenres.includes(g);
+      gv.appendChild(chip(g, liked ? "on" : disliked ? "off" : "", () => {
+        if (liked) { prefs.likedGenres = prefs.likedGenres.filter((x) => x !== g); prefs.dislikedGenres = prefs.dislikedGenres.concat(g); }
+        else if (disliked) { prefs.dislikedGenres = prefs.dislikedGenres.filter((x) => x !== g); }
+        else { prefs.likedGenres = prefs.likedGenres.concat(g); }
+        drawSettings(); savePrefs();
+      }));
+    });
+    $("followed").value = prefs.followedShows.join("\n");
+    $("hidden").value = prefs.hiddenShows.join("\n");
+    $("days").value = String(prefs.days);
+    $("lookback").value = String(prefs.lookBack);
+    $("seasons").checked = prefs.includeNewSeasons;
+    $("foreign").checked = !prefs.languages.length;
+  }
+
+  $("followed").onchange = (e) => { prefs.followedShows = lines(e.target.value); savePrefs(); };
+  $("hidden").onchange = (e) => { prefs.hiddenShows = lines(e.target.value); savePrefs(); };
+  $("seasons").onchange = (e) => { prefs.includeNewSeasons = e.target.checked; savePrefs(); };
+  $("foreign").onchange = (e) => { prefs.languages = e.target.checked ? [] : ["English"]; savePrefs(); };
+  $("lookback").onchange = (e) => { prefs.lookBack = Number(e.target.value); savePrefs(); load(); };
+  $("days").onchange = (e) => { prefs.days = Number(e.target.value); savePrefs(); load(); };
+  $("svc-all").onclick = () => { prefs.services = Object.keys(S.SERVICES); drawSettings(); savePrefs(); };
+  $("svc-none").onclick = () => { prefs.services = []; drawSettings(); savePrefs(); };
+  $("retry").onclick = () => load();
+  $("refresh").onclick = () => { pruneCache(); memCache.clear(); load(); };
+
+  const fmtDate = (iso) => new Date(iso + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  function when(p) {
+    if (p.daysAway < 0) return "Out since " + fmtDate(p.airdate);
+    if (p.daysAway === 0) return "Today";
+    if (p.daysAway === 1) return "Tomorrow";
+    return fmtDate(p.airdate);
+  }
+
+  function card(p) {
+    const el = document.createElement("article");
+    el.className = "card";
+    const img = document.createElement(p.image ? "img" : "div");
+    img.className = "poster";
+    if (p.image) { img.src = p.image; img.alt = ""; img.loading = "lazy"; }
+    const body = document.createElement("div");
+    const h = document.createElement("h4");
+    const a = document.createElement("a");
+    a.href = p.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = p.name;
+    h.appendChild(a);
+    const meta = document.createElement("div"); meta.className = "meta";
+    const tagText = p.followed && p.kind === "continuing" ? `New episode S${p.season}E${p.episode}`
+      : p.kind === "new-show" ? "New series" : `Season ${p.season}`;
+    const tag = document.createElement("span");
+    tag.className = "tag " + (p.followed && p.kind === "continuing" ? "followed" : p.kind);
+    tag.textContent = tagText;
+    meta.append(tag);
+    [when(p), p.service, p.genres.join(", ")].filter(Boolean).forEach((t) => {
+      const s = document.createElement("span"); s.textContent = t; meta.append(s);
+    });
+    const why = document.createElement("p"); why.className = "why";
+    if (p.reasonsA) {
+      const [a, b] = saved.profiles.map((x) => x.name);
+      why.textContent = `${a}: ${p.reasonsA.join(", ")} · ${b}: ${p.reasonsB.join(", ")}`;
+      el.classList.add("together");
+    } else {
+      why.textContent = p.reasons.join(" · ");
+    }
+    const sum = document.createElement("p"); sum.className = "summary"; sum.textContent = p.summary;
+    const act = document.createElement("div"); act.className = "actions";
+    act.append(
+      Object.assign(document.createElement("button"), {
+        textContent: p.followed ? "Unfollow" : "Follow", type: "button",
+        onclick: () => {
+          prefs.followedShows = p.followed ? prefs.followedShows.filter((x) => x.toLowerCase() !== p.name.toLowerCase()) : prefs.followedShows.concat(p.name);
+          drawSettings(); savePrefs();
+        },
+      }),
+      Object.assign(document.createElement("button"), {
+        textContent: "Not for me", type: "button",
+        onclick: () => { prefs.hiddenShows = prefs.hiddenShows.concat(p.name); drawSettings(); savePrefs(); },
+      }),
+    );
+    body.append(h, meta, why, sum, act);
+    el.append(img, body);
+    return el;
+  }
+
+  function section(title, items) {
+    if (!items.length) return null;
+    const frag = document.createDocumentFragment();
+    const h = document.createElement("h2"); h.textContent = title;
+    const list = document.createElement("div"); list.className = "list";
+    items.forEach((p) => list.appendChild(card(p)));
+    frag.append(h, list);
+    return frag;
+  }
+
+  function render() {
+    const out = $("out"); out.innerHTML = "";
+    if (!episodes) return;
+    const arrived = view === "arrived" ? { arrived: true } : {};
+    const both = (o) => S.bothWant(episodes, saved.profiles[0].prefs, saved.profiles[1].prefs, today, o);
+    const together = both(arrived);
+    const togetherIds = new Set(together.map((p) => p.id));
+    const picks = S.recommend(episodes, prefs, today, arrived).filter((p) => !togetherIds.has(p.id));
+    drawAlert(view === "arrived" ? together.concat(both({})) : together.concat(both({ arrived: true })));
+    const tsec = section("Watch together", together.slice(0, SHORT_TOGETHER));
+    if (tsec) out.appendChild(tsec);
+    if (!picks.length && !together.length && loading) {
+      $("status").textContent = `Loading listings: day ${loading.n} of ${loading.total}…`;
+      return;
+    }
+    if (!picks.length && !together.length) {
+      out.innerHTML = '<div class="empty">Nothing matches yet. Switch on more services above, or loosen your tastes.</div>';
+      return;
+    }
+    // Kept deliberately short: a few shared picks and a few personal ones. Everything
+    // else waits behind one "Show more" button, listed by date.
+    const name = saved.profiles[saved.active].name;
+    const extraTogether = together.slice(SHORT_TOGETHER);
+    const mine = picks.slice(0, SHORT_MINE);
+    const more = extraTogether.concat(picks.slice(SHORT_MINE)).sort((a, b) =>
+      view === "arrived" ? b.airdate.localeCompare(a.airdate) : a.airdate.localeCompare(b.airdate));
+    const msec = section(view === "arrived" ? `Out now for ${name}` : `Coming for ${name}`, mine);
+    if (msec) out.appendChild(msec);
+    if (more.length) {
+      if (expanded) {
+        out.appendChild(section(view === "arrived" ? "Everything else, newest first" : "Everything else, by date", more));
+        const less = Object.assign(document.createElement("button"), { type: "button", className: "more", textContent: "Show fewer" });
+        less.onclick = () => { expanded = false; render(); };
+        out.appendChild(less);
+      } else {
+        const btn = Object.assign(document.createElement("button"), { type: "button", className: "more", textContent: `Show ${more.length} more` });
+        btn.onclick = () => { expanded = true; render(); };
+        out.appendChild(btn);
+      }
+    }
+    $("status").textContent = loading
+      ? `Loading listings: day ${loading.n} of ${loading.total}…`
+      : (skipped.length ? `${skipped.length} day(s) couldn't be loaded.` : "");
+  }
+
+  // Banner for shows you'd both want that haven't been seen yet. Only once loading has
+  // finished, so it doesn't flicker as days arrive. Dismissing marks them as seen.
+  const SEEN_KEY = "streamscan:seenTogether";
+  function drawAlert(together) {
+    const box = $("alert");
+    if (loading) return;
+    const seen = new Set(store.get(SEEN_KEY) || []);
+    const fresh = together.filter((p) => !seen.has(p.id));
+    if (!fresh.length) { box.hidden = true; return; }
+    const [a, b] = saved.profiles.map((x) => x.name);
+    box.querySelector("p").textContent = `${fresh.length === 1 ? "A new show" : fresh.length + " new shows"} ${a} and ${b} would both want: ${fresh.map((p) => p.name).join(", ")}.`;
+    box.querySelector("button").onclick = () => {
+      store.set(SEEN_KEY, [...seen, ...fresh.map((p) => p.id)].slice(-500));
+      box.hidden = true;
+    };
+    box.hidden = false;
+  }
+
+  const SHORT_TOGETHER = 3, SHORT_MINE = 5;
+  let expanded = false;
+  let view = "soon"; // "soon" (coming up) or "arrived" (out in the last month)
+  try { if (sessionStorage.getItem("streamscan:view") === "arrived") view = "arrived"; } catch {}
+  function drawView() {
+    document.querySelectorAll("#view button").forEach((b) => {
+      const on = b.dataset.view === view;
+      b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
+      b.onclick = () => { view = b.dataset.view; expanded = false; try { sessionStorage.setItem("streamscan:view", view); } catch {} drawView(); render(); };
+    });
+  }
+
+  let loading = null; // {n, total} while listings are still arriving
+  let skipped = [];
+
+  function explain(err) {
+    const framed = (() => { try { return window.self !== window.top; } catch { return true; } })();
+    if (typeof navigator !== "undefined" && navigator.onLine === false)
+      return "Your computer seems to be offline. Reconnect and press Try again.";
+    if (err.kind === "blocked" && framed)
+      return "This page is being shown inside another app (such as a preview window), which isn't allowed to fetch listings. Download streamscan.html and open it directly in Chrome, Safari, Edge or Firefox.";
+    if (err.kind === "blocked")
+      return "Your browser stopped the request to TVmaze. An ad or privacy blocker, a work network or a strict browser setting can do this. Try allowing api.tvmaze.com, or another browser, then press Try again.";
+    if (err.kind === "rate-limited")
+      return "TVmaze asked us to slow down. Wait a minute and press Try again; days already loaded are kept.";
+    return "TVmaze had a problem (" + err.detail + "). Press Try again in a little while.";
+  }
+
+  function showError(err) {
+    const box = $("error");
+    box.hidden = false;
+    box.querySelector("p").textContent = explain(err);
+    box.querySelector("code").textContent = err.message;
+  }
+
+  async function load() {
+    const bar = $("bar"), fill = bar.firstElementChild;
+    $("error").hidden = true;
+    skipped = [];
+    loading = { n: 0, total: prefs.days + 1 };
+    $("status").textContent = "Checking what's coming up…";
+    bar.hidden = false; fill.style.width = "0";
+    let lastErr = null;
+    try {
+      episodes = await S.fetchUpcoming({
+        fetchFn: (u) => fetch(u), today, days: prefs.days, back: prefs.lookBack, cache,
+        onProgress: (n, total) => { loading = { n, total }; fill.style.width = Math.round((n / total) * 100) + "%"; },
+        onDay: (soFar) => { episodes = soFar; render(); },
+        onError: (err, date) => { lastErr = err; skipped.push(date); },
+      });
+      loading = null;
+      bar.hidden = true;
+      render();
+      if (skipped.length && lastErr) showError(lastErr);
+    } catch (err) {
+      loading = null;
+      bar.hidden = true;
+      $("status").textContent = "Couldn't load listings from TVmaze.";
+      showError(err);
+      console.error("Streamscan:", err);
+    }
+  }
+
+  const fromLink = /#lists=/.test(location.hash);
+  importFromLink();
+  if (firstRun && !fromLink) { $("settings").open = true; $("svc-panel").open = true; }
+  drawProfiles();
+  drawView();
+  drawSettings();
+  load();
+})();
+</script>
+</body>
+</html>
