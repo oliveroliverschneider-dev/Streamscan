@@ -3,7 +3,7 @@
 Tells you which new series and new seasons are coming to your UK streaming services, ranked by your tastes.
 
 ## Use it
-Open https://oliveroliverschneider-dev.github.io/Streamscan/ on your phone or computer, or download `index.html` and open it in a browser. It reads live listings from TVmaze, a free site that already tracks Netflix, Prime Video, Disney+, Apple TV+, Paramount+, Sky/NOW (including HBO), iPlayer, ITVX, Channel 4 and more. Two profiles (Nicola and Partner, renameable) each keep their own services, genres, followed and hidden shows, saved in that browser. "Follow" a show to see every new episode; "Not for me" hides it.
+Open https://oliveroliverschneider-dev.github.io/Streamscan/ on your phone or computer, or download `index.html` and open it in a browser. It reads live listings from TVmaze, a free site that already tracks Netflix, Prime Video, Disney+, Apple TV+, Paramount+, Sky/NOW (including HBO), iPlayer, ITVX, Channel 4 and more. Two profiles (Nicola and Oliver) each keep their own services, genres, followed and hidden shows, saved in that browser. "Follow" a show to see every new episode; "Not for me" hides it.
 
 ## On iPhone
 Open the web address in Safari, then Share > Add to Home Screen. "Send to other phone" makes a link holding both profiles; open it on the other phone to load them there.

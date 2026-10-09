@@ -193,10 +193,12 @@ footer a { color: inherit; }
   if (!saved || !Array.isArray(saved.profiles)) {
     saved = { active: 0, profiles: [
       { name: "Nicola", prefs: Object.assign({}, S.DEFAULT_PREFS, store.get(PREFS_KEY) || {}) },
-      { name: "Partner", prefs: Object.assign({}, S.DEFAULT_PREFS) },
+      { name: "Oliver", prefs: Object.assign({}, S.DEFAULT_PREFS) },
     ] };
   }
-  saved.profiles.forEach((pr) => { pr.prefs = Object.assign({}, S.DEFAULT_PREFS, pr.prefs); });
+  // The two people are fixed; this also renames anything saved under older names.
+  const NAMES = ["Nicola", "Oliver"];
+  saved.profiles.forEach((pr, i) => { pr.name = NAMES[i]; pr.prefs = Object.assign({}, S.DEFAULT_PREFS, pr.prefs); });
   let prefs = saved.profiles[saved.active].prefs;
   let episodes = null;
   const today = new Date().toISOString().slice(0, 10);
@@ -226,7 +228,7 @@ footer a { color: inherit; }
     let data;
     try { data = JSON.parse(unb64(m[1])); } catch { alert("That Streamscan link looks broken, so nothing was changed."); return; }
     if (!data || !Array.isArray(data.profiles) || data.profiles.length !== 2) return;
-    const names = data.profiles.map((p) => String(p.name || "").slice(0, 24) || "Someone");
+    const names = NAMES;
     if (!window.confirm(`Load ${names[0]} and ${names[1]}'s lists on this phone? This replaces the lists here.`)) return;
     const mine = window.confirm(`Is this ${names[1]}'s phone? OK for ${names[1]}, Cancel for ${names[0]}.`) ? 1 : 0;
     const clean = (arr) => (Array.isArray(arr) ? arr.filter((x) => typeof x === "string").slice(0, 300) : []);
@@ -263,14 +265,6 @@ footer a { color: inherit; }
     sh.type = "button"; sh.className = "mini"; sh.textContent = "Send to other phone";
     sh.onclick = shareProfiles;
     box.appendChild(sh);
-    const rn = document.createElement("button");
-    rn.type = "button"; rn.className = "mini"; rn.textContent = "Rename";
-    rn.onclick = () => {
-      const pr = saved.profiles[saved.active];
-      const name = (window.prompt("Name for this profile", pr.name) || "").trim().slice(0, 24);
-      if (name) { pr.name = name; drawProfiles(); savePrefs(); }
-    };
-    box.appendChild(rn);
   }
   const lines = (s) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 
