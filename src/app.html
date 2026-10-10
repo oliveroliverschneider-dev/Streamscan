@@ -50,6 +50,10 @@ details.settings summary { cursor: pointer; font-weight: 600; }
 .profiles { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 16px 0 0; }
 .tab { border-radius: 999px; padding: 6px 16px; font-weight: 600; }
 .tab.on { background: var(--chip-on); color: var(--chip-on-ink); border-color: var(--chip-on); }
+.sync p { margin: 0 0 8px; }
+.sync .row { gap: 8px; }
+.sync input { font: inherit; font-size: 16px; flex: 1; min-width: 10em; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; text-transform: uppercase; }
+.sync .code { font-family: ui-monospace, Menlo, monospace; letter-spacing: 0.05em; }
 .mini { padding: 3px 10px; font-size: 12px; }
 .chip.svc::before { content: "○ "; }
 .chip.svc.on::before { content: "✓ "; }
@@ -106,6 +110,7 @@ footer a { color: inherit; }
     <button class="primary" id="refresh">Refresh listings</button>
   </header>
   <nav class="profiles" id="profiles" aria-label="Whose picks"></nav>
+  <section class="settings sync" id="sync" hidden aria-label="Sharing between phones"></section>
 
   <details class="settings" id="svc-panel">
     <summary id="svc-summary">Services</summary>
@@ -153,6 +158,9 @@ footer a { color: inherit; }
 
 <script>
 /*CORE*/
+</script>
+<script>
+/*SYNC*/
 </script>
 <script>
 (function () {
@@ -208,7 +216,133 @@ footer a { color: inherit; }
   let episodes = null;
   const today = new Date().toISOString().slice(0, 10);
 
-  function savePrefs() { store.set(PROFILES_KEY, saved); render(); }
+  // Older archives recorded only the day; sync compares exact times.
+  (saved.watched || []).forEach((w) => { if (!w.at) w.at = Date.parse(w.on || today) || Date.now(); });
+
+  // Remember each profile's settings so we can tell real edits (which win when the two
+  // phones' copies are merged) from saves that only switch tabs.
+  const snaps = saved.profiles.map((p) => JSON.stringify(p.prefs));
+  function savePrefs() {
+    saved.profiles.forEach((p, i) => {
+      const now = JSON.stringify(p.prefs);
+      if (now !== snaps[i]) { snaps[i] = now; p.updatedAt = Date.now(); }
+    });
+    store.set(PROFILES_KEY, saved);
+    render();
+    scheduleSync();
+  }
+
+  // ---- Sharing between phones ----------------------------------------------
+  // Both phones join one "household" by code and keep a shared copy online. Until the
+  // online store is configured, the older "Send to other phone" link is offered instead.
+  const SYNC_CONFIG = { apiKey: "", projectId: "" };
+  const Y = window.StreamscanSync;
+  const HOUSEHOLD_KEY = "streamscan:household";
+  const syncOn = !!(SYNC_CONFIG.apiKey && SYNC_CONFIG.projectId);
+  const syncStore = syncOn ? Y.firestoreStore(SYNC_CONFIG, (u, o) => fetch(u, o)) : null;
+  let household = syncOn ? store.get(HOUSEHOLD_KEY) : null;
+  let syncNote = "";
+  let syncTimer = null;
+
+  function sharedState() {
+    return {
+      profiles: saved.profiles.map((p) => ({ name: p.name, prefs: p.prefs, updatedAt: p.updatedAt || 0 })),
+      watched: watchedList(),
+      unwatched: saved.unwatched || {},
+    };
+  }
+
+  function applyShared(m) {
+    const before = prefs.days + "/" + prefs.lookBack;
+    m.profiles.forEach((p, i) => {
+      if (!p) return;
+      saved.profiles[i].prefs = Object.assign({}, S.DEFAULT_PREFS, p.prefs);
+      saved.profiles[i].updatedAt = p.updatedAt || 0;
+      snaps[i] = JSON.stringify(saved.profiles[i].prefs);
+    });
+    saved.watched = m.watched || [];
+    saved.unwatched = m.unwatched || {};
+    prefs = saved.profiles[saved.active].prefs;
+    store.set(PROFILES_KEY, saved);
+    drawSettings();
+    if (prefs.days + "/" + prefs.lookBack !== before) load(); else render();
+  }
+
+  async function doSync() {
+    if (!household) return;
+    try {
+      applyShared(await Y.syncOnce(syncStore, household, sharedState()));
+      syncNote = "Up to date with the other phone.";
+    } catch (e) {
+      syncNote = "Couldn't reach the shared lists just now; changes are kept on this phone and will sync later.";
+      console.error("Streamscan sync:", e);
+    }
+    drawSync();
+  }
+  function scheduleSync() {
+    if (!household) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(doSync, 1500);
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") doSync(); });
+
+  async function startSharing() {
+    household = Y.makeCode((n) => crypto.getRandomValues(new Uint8Array(n)));
+    try { await syncStore.put(household, sharedState()); }
+    catch (e) { household = null; alert("Couldn't start sharing just now. Check your connection and try again."); return; }
+    store.set(HOUSEHOLD_KEY, household);
+    syncNote = "Sharing started.";
+    drawSync();
+  }
+
+  async function joinHousehold(input) {
+    const code = Y.normaliseCode(input);
+    if (!code) { alert("That code doesn't look right. It's 12 letters and numbers, like ABCD-EFGH-JKMN."); return; }
+    let remote;
+    try { remote = await syncStore.get(code); }
+    catch (e) { alert("Couldn't check that code just now. Check your connection and try again."); return; }
+    if (!remote) { alert("No shared lists were found for that code. Check it against the other phone."); return; }
+    // A phone joining takes the shared lists as they are, rather than merging in its
+    // own untouched defaults.
+    household = code;
+    store.set(HOUSEHOLD_KEY, household);
+    applyShared(remote);
+    syncNote = "Joined. This phone now shows the shared lists.";
+    drawSync();
+  }
+
+  function leaveHousehold() {
+    if (!window.confirm("Stop sharing on this phone? Your lists stay here, but changes won't reach the other phone.")) return;
+    household = null; syncNote = "";
+    try { localStorage.removeItem(HOUSEHOLD_KEY); } catch {}
+    drawSync();
+  }
+
+  function drawSync() {
+    const box = $("sync");
+    if (!syncOn) { box.hidden = true; return; }
+    box.innerHTML = "";
+    const p = (t) => { const e = document.createElement("p"); e.textContent = t; return e; };
+    const btn = (t, f, cls = "mini") => Object.assign(document.createElement("button"), { type: "button", className: cls, textContent: t, onclick: f });
+    if (household) {
+      const code = document.createElement("strong"); code.className = "code"; code.textContent = household;
+      const line = p("Sharing lists with the other phone. Code: "); line.appendChild(code);
+      const row = document.createElement("div"); row.className = "row";
+      row.append(
+        btn("Copy code", async () => { try { await navigator.clipboard.writeText(household); syncNote = "Code copied."; } catch { window.prompt("Copy this code:", household); } drawSync(); }),
+        btn("Stop sharing on this phone", leaveHousehold),
+      );
+      box.append(line, row);
+      if (syncNote) box.append(Object.assign(p(syncNote), { className: "hint" }));
+    } else {
+      box.append(p("Keep your and Oliver's lists the same on both phones."));
+      const row = document.createElement("div"); row.className = "row";
+      const input = Object.assign(document.createElement("input"), { type: "text", placeholder: "Code from the other phone", autocapitalize: "characters", autocomplete: "off", spellcheck: false });
+      row.append(btn("Start sharing", startSharing, "primary"), input, btn("Join", () => joinHousehold(input.value)));
+      box.append(row, Object.assign(p("Start on one phone, then type its code into the app on the other phone."), { className: "hint" }));
+    }
+    box.hidden = false;
+  }
 
   // Both people's lists travel inside a link (after #, so it never reaches a server).
   // Opening it on the other phone offers to load them there.
@@ -271,10 +405,12 @@ footer a { color: inherit; }
       };
       box.appendChild(b);
     });
-    const sh = document.createElement("button");
-    sh.type = "button"; sh.className = "mini"; sh.textContent = "Send to other phone";
-    sh.onclick = shareProfiles;
-    box.appendChild(sh);
+    if (!syncOn) {
+      const sh = document.createElement("button");
+      sh.type = "button"; sh.className = "mini"; sh.textContent = "Send to other phone";
+      sh.onclick = shareProfiles;
+      box.appendChild(sh);
+    }
   }
   const lines = (s) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 
@@ -404,10 +540,15 @@ footer a { color: inherit; }
   // "Send to other phone" link, so both phones agree.
   function watchedList() { return Array.isArray(saved.watched) ? saved.watched : (saved.watched = []); }
   function markWatched(p) {
-    watchedList().unshift({ id: p.id, name: p.name, url: p.url, image: p.image, service: p.service, genres: p.genres, on: today });
+    watchedList().unshift({ id: p.id, name: p.name, url: p.url, image: p.image, service: p.service, genres: p.genres, on: today, at: Date.now() });
+    if (saved.unwatched) delete saved.unwatched[p.id];
     savePrefs();
   }
-  function unwatch(id) { saved.watched = watchedList().filter((w) => w.id !== id); savePrefs(); }
+  function unwatch(id) {
+    saved.watched = watchedList().filter((w) => w.id !== id);
+    saved.unwatched = Object.assign(saved.unwatched || {}, { [id]: Date.now() });
+    savePrefs();
+  }
 
   function archiveCard(w) {
     const el = document.createElement("article"); el.className = "card";
@@ -570,7 +711,9 @@ footer a { color: inherit; }
   drawProfiles();
   drawView();
   drawSettings();
+  drawSync();
   load();
+  doSync();
 })();
 </script>
 </body>

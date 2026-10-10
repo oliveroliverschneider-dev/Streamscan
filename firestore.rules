@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // One document per household, named by its 12-character code. A phone can read or
+    // write a household only if it knows the code; nobody can list or search households.
+    match /households/{code} {
+      allow get: if code.matches('^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$');
+      allow create, update: if code.matches('^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$')
+        && request.resource.data.keys().hasOnly(['data', 'updated'])
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 500000;
+    }
+  }
+}
